@@ -1,0 +1,4 @@
+{
+    "chatbot_description": "Chat over LangChain Docs",
+    "model_file": "call_model.py"
+}

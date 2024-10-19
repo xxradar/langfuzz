@@ -1,0 +1,21 @@
+[build-syste]
+requires = ["setuptools>=45", "setuptools-scm>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "langfuzz"
+version = "0.0.1"
+description = "Project to fuzz language model applications"
+authors = [{name = "Harrison Chase"}]
+dependencies = [
+    "langgraph",
+    "langchain",
+    "langchain_openai",
+    "langsmith",
+]
+
+[project.scripts]
+langfuzz = "langfuzz.redteam:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
