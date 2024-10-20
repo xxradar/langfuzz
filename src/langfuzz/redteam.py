@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import contextlib
 import dataclasses
 import importlib.util
 import json
@@ -255,6 +256,7 @@ async def run_redteam(
     graph = create_redteam_graph(call_model)
 
     # Add these to Results below
+    done = asyncio.Event()
     results = queue.PriorityQueue()
     got_results = False
 
@@ -264,25 +266,50 @@ async def run_redteam(
             "n": n,
             "generated_questions": generated_questions,
         }
-        async for event in graph.astream(
-            inputs, {"max_concurrency": max_concurrency}, stream_mode="updates"
-        ):
-            if "generate_questions" in event:
-                print(f"Generated {len(event['generate_questions']['pairs'])} pairs")
-            if "judge_graph_node" in event:
-                for answer in event["judge_graph_node"]["answers"]:
-                    if answer["judge"]["similarity"] <= max_similarity:
-                        results.put(Result(answer["judge"]["similarity"], answer))
-                    else:
-                        if persistence_path:
-                            generated_questions.extend(
-                                [answer["input_1"], answer["input_2"]]
-                            )
-                            persistence["generated_questions"] = generated_questions
-                            with open(persistence_path, "w") as config_file:
-                                json.dump(persistence, config_file, indent=4)
-                while results.qsize() >= n_prefill_questions:
-                    asyncio.sleep(1)
+        async with contextlib.aclosing(
+            graph.astream(
+                inputs, {"max_concurrency": max_concurrency}, stream_mode="updates"
+            )
+        ) as stream:
+            done_fut = asyncio.create_task(done.wait())
+            while True:
+                try:
+                    fin, other = await asyncio.wait(
+                        {done_fut, asyncio.create_task(anext(stream))},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for fut in fin:
+                        if fut is done_fut:
+                            for f in other:
+                                f.cancel()
+                                try:
+                                    await f
+                                except asyncio.CancelledError:
+                                    pass
+                            break
+                        else:
+                            event = fut.result()
+                except StopAsyncIteration:
+                    break
+                if "generate_questions" in event:
+                    print(
+                        f"Generated {len(event['generate_questions']['pairs'])} pairs"
+                    )
+                if "judge_graph_node" in event:
+                    for answer in event["judge_graph_node"]["answers"]:
+                        if answer["judge"]["similarity"] <= max_similarity:
+                            results.put(Result(answer["judge"]["similarity"], answer))
+                        else:
+                            if persistence_path:
+                                generated_questions.extend(
+                                    [answer["input_1"], answer["input_2"]]
+                                )
+                                persistence["generated_questions"] = generated_questions
+                                with open(persistence_path, "w") as config_file:
+                                    json.dump(persistence, config_file, indent=4)
+                    while results.qsize() >= n_prefill_questions:
+                        await asyncio.sleep(1)
+        results.put(Result(11, {}))
 
     def run_async_collection():
         asyncio.run(collect_results())
@@ -294,8 +321,10 @@ async def run_redteam(
     while True:
         if results:
             got_results = True
-
-            r = results.get().answer
+            r1 = results.get()
+            if r1.prio == 11:
+                break
+            r = r1.answer
             if persistence_path:
                 generated_questions.extend([r["input_1"], r["input_2"]])
                 persistence["generated_questions"] = generated_questions
@@ -316,6 +345,8 @@ async def run_redteam(
             elif i == "3":
                 pass
             elif i == "q":
+                done.set()
+                thread.join()
                 break
             else:
                 client.create_examples(
