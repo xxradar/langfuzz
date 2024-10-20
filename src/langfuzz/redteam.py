@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import dataclasses
 import importlib.util
 import json
 import operator
@@ -7,6 +8,7 @@ import os
 import threading
 import time
 import warnings
+import queue
 from typing import Annotated, Any, Callable, TypedDict
 
 from langchain.chat_models import init_chat_model
@@ -18,7 +20,10 @@ from langgraph.types import Send
 # Suppress all warnings
 warnings.filterwarnings("ignore")
 
-
+@dataclasses.dataclass(order=True)
+class Result:
+    prio: int
+    answer: dict = dataclasses.field(hash=False, compare=False)
 
 class Response(TypedDict):
     input_1: str
@@ -219,7 +224,7 @@ async def run_redteam(
     
         
     # Add these to Results below
-    results = []
+    results = queue.PriorityQueue()
     got_results = False
     
     async def collect_results():
@@ -230,7 +235,7 @@ async def run_redteam(
             if "judge_graph_node" in event:
                 for answer in event["judge_graph_node"]['answers']:
                     if answer['judge']['similarity'] <= max_similarity:
-                        results.append(answer)
+                        results.append(Result(answer['judge']['similarity'], answer))
                     else:
                         if persistence_path:
                             generated_questions.extend([answer['input_1'], answer['input_2']])
@@ -238,7 +243,7 @@ async def run_redteam(
                             with open(persistence_path, 'w') as config_file:
                                 json.dump(persistence, config_file, indent=4)
                 while len(results) > n_prefill_questions:
-                    time.sleep(1)
+                    asyncio.sleep(1)
 
     
     def run_async_collection():
@@ -251,8 +256,8 @@ async def run_redteam(
     while True:
         if results:
             got_results = True
-            results = sorted(results, key=lambda x: x['judge']['similarity'], reverse=False)
-            r = results.pop(0)
+            
+            r = results.get()
             if persistence_path:
                 generated_questions.extend([r['input_1'], r['input_2']])
                 persistence['generated_questions'] = generated_questions
