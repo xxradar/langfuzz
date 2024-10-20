@@ -186,7 +186,7 @@ async def run_redteam(
         dataset_id, 
         n, 
         max_concurrency, 
-        n_prefill_questions, 
+        #n_prefill_questions, 
         max_similarity,
         persistence_path
     ):
@@ -204,7 +204,7 @@ async def run_redteam(
     dataset_id = dataset_id or config.get('dataset_id', None) or persistence.get('dataset_id', None)
     n = n or config.get('n', 10)
     max_concurrency = max_concurrency or config.get('max_concurrency', 10)
-    n_prefill_questions = n_prefill_questions or config.get('n_prefill_questions', 10)
+    # n_prefill_questions = n_prefill_questions or config.get('n_prefill_questions', 10)
     max_similarity = max_similarity or config.get('max_similarity', 10)
     if persistence:
         generated_questions = persistence.get('generated_questions', [])
@@ -235,15 +235,15 @@ async def run_redteam(
             if "judge_graph_node" in event:
                 for answer in event["judge_graph_node"]['answers']:
                     if answer['judge']['similarity'] <= max_similarity:
-                        results.append(Result(answer['judge']['similarity'], answer))
+                        results.put(Result(answer['judge']['similarity'], answer))
                     else:
                         if persistence_path:
                             generated_questions.extend([answer['input_1'], answer['input_2']])
                             persistence['generated_questions'] = generated_questions
                             with open(persistence_path, 'w') as config_file:
                                 json.dump(persistence, config_file, indent=4)
-                while len(results) > n_prefill_questions:
-                    asyncio.sleep(1)
+                # while len(results) > n_prefill_questions:
+                #     asyncio.sleep(1)
 
     
     def run_async_collection():
@@ -257,7 +257,7 @@ async def run_redteam(
         if results:
             got_results = True
             
-            r = results.get()
+            r = results.get().answer
             if persistence_path:
                 generated_questions.extend([r['input_1'], r['input_2']])
                 persistence['generated_questions'] = generated_questions
@@ -310,7 +310,7 @@ def main():
     parser.add_argument('--dataset_id', type=str, help='ID of the dataset to use')
     parser.add_argument('--n', type=int, help='Number of questions to generate')
     parser.add_argument('--max_concurrency', type=int, help='Maximum number of concurrent requests to the model')
-    parser.add_argument('--n_prefill_questions', type=int, help='Number of questions to prefill the dataset with')
+    #parser.add_argument('--n_prefill_questions', type=int, help='Number of questions to prefill the dataset with')
     parser.add_argument('--max_similarity', type=int, help='Maximum similarity score to accept')
     parser.add_argument('-p', '--persistence-path', type=str, help='Path to the persistence file')
     args = parser.parse_args()
@@ -318,4 +318,13 @@ def main():
     config = load_config(args.config_path)
 
     call_model = load_call_model(config['model_file'])
-    asyncio.run(run_redteam(config, call_model, args.dataset_id, args.n, args.max_concurrency, args.n_prefill_questions, args.max_similarity, args.persistence_path))
+    asyncio.run(run_redteam(
+        config, 
+        call_model, 
+        args.dataset_id, 
+        args.n, 
+        args.max_concurrency, 
+        # args.n_prefill_questions, 
+        args.max_similarity, 
+        args.persistence_path
+        ))

@@ -1,14 +1,27 @@
-from langgraph_sdk import get_client
+import random
+from openai import AsyncOpenAI
 
-client = get_client(url="https://chat-langchain-harrison-5e1205077f2c57788c506fd71cf3b3a0.default.us.langgraph.app")
-assistant_id = "chat"
+client = AsyncOpenAI()
 
 
 async def call_model(question: str) -> str:
-    input_messages = {"messages": [{"role": "user", "content": question}]}
-    stateless_run_result = await client.runs.wait(
-        None,
-        assistant_id,
-        input=input_messages,
+
+    # This is to add some randomness in and get bad answers.
+    if random.uniform(0, 1) > .5:
+        system_message = "LangChain is an LLM framework"
+    else:
+        system_message = "LangChain is blockchain technology"
+
+    completion = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_message},
+            {
+                "role": "user",
+                "content": question
+            }
+        ]
     )
-    return stateless_run_result['messages'][-1]['content']
+    return completion.choices[0].message.content
+
+
