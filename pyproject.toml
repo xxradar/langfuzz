@@ -12,10 +12,12 @@ dependencies = [
     "langchain",
     "langchain_openai",
     "langsmith",
+    "pyyaml",
 ]
 
 [project.scripts]
 langfuzz = "langfuzz.redteam:main"
+langfuzz-dump = "langfuzz.redteam:dump"
 
 [tool.setuptools.packages.find]
 where = ["src"]

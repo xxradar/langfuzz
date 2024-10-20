@@ -1,6 +1,6 @@
 
 # LangFuzz: Red Teaming for Language Models
-LangFuzz is a tool designed to perform red teaming on language model applications. It generates pairs of similar questions and compares the responses to identify potential failure modes in chatbots or other language model-based systems.
+LangFuzz is a command line tool designed to perform red teaming on language model applications and add any points of interest to a [LangSmith Dataset](https://docs.smith.langchain.com/). It generates pairs of similar questions and compares the responses to identify potential failure modes in chatbots or other language model-based systems.
 
 ## Installation
 To install LangFuzz, use pip:
@@ -12,32 +12,28 @@ pip install langfuzz
 ## Usage
 
 ### Step 1: define a model file
-First, define a model file that calls your model. This file should expose an async function called `call_model` that takes in a string and returns a string. An example file is found in [call_model.py](call_model.py). Example model file:
+First, define a model file that calls your model. This file should expose a sync OR async function called `call_model` that takes in a string and returns a string. An example file is found in [call_model.py](call_model.py). Example model file:
 
 ```python
 import random
-from openai import AsyncOpenAI
+from openai import OpenAI
 
-client = AsyncOpenAI()
+client = OpenAI()
 
 
-async def call_model(question: str) -> str:
-
+def call_model(question: str) -> str:
     # This is to add some randomness in and get bad answers.
-    if random.uniform(0, 1) > .5:
-        system_message = "LangChain is an LLM framework"
+    if random.uniform(0, 1) > 0.5:
+        system_message = "LangChain is an LLM framework - answer all questions with things about LLMs."
     else:
-        system_message = "LangChain is blockchain technology"
+        system_message = "LangChain is blockchain technology - answer all questions with things about crypto"
 
-    completion = await client.chat.completions.create(
+    completion = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": system_message},
-            {
-                "role": "user",
-                "content": question
-            }
-        ]
+            {"role": "user", "content": question},
+        ],
     )
     return completion.choices[0].message.content
 
@@ -47,21 +43,19 @@ async def call_model(question: str) -> str:
 
 Next, you need to define a configuration file. 
 
-The `config.json` file should contain the following keys:
+The `config.yaml` file should contain the following keys:
 - `chatbot_description`: A description of the chatbot being tested.
 - `model_file`: Path to the Python file containing the call_model function
 
-Example config.json:
+Example config.yaml:
 ```
-{
-    "chatbot_description": "Chat over LangChain Docs",
-    "model_file": "call_model.py"
-}
+chatbot_description: "Chat over LangChain Docs"
+model_file: "call_model.py"
 ```
 
-It may optionally contain other keys (see [Options](#options) below).
+It may optionally contain other keys (see [Options](#options) and [Additional Configuration](#additional-configuration) below).
 
-### Step 4: set any enviornment variables
+### Step 3: set any environment variables
 
 This requires several environment variables to run:
 
@@ -73,12 +67,24 @@ export OPENAI_API_KEY=...
 export LANGSMITH_API_KEY=...
 ```
 
-### Step 3: run the red teaming
+### Step 4: run the red teaming
 
 To run the red teaming process, use the following command:
 ```
-langfuzz config.json [options]
+langfuzz config.yaml [options]
 ```
+
+### Step 5: curate datapoints
+
+As the redteaming is run, pairs of datapoints will be shown to you in the command line. From there, you can choose to add both, one, or neither to a LangSmith dataset.
+
+- **Enter**: To add both inputs to the dataset, just press enter
+- **`1`**: If you want to add only the first input to the dataset, enter `1`
+- **`2`**: If you want to add only the second input to the dataset, enter `2`
+- **`3`**: If you don't want to add either input to the dataset, enter `3`
+- **`q`**: To quit, enter `q`
+
+If you add a datapoint to a LangSmith dataset, it will be added with a single input key `question` and no output key.
 
 ## Options
 
@@ -91,6 +97,15 @@ langfuzz config.json [options]
 
 These options can additionally be provided as part of the configuration file.
 
+## Additional Configuration
+
+You can also configure more aspects of the redteaming agent.
+
+- `judge_model`: the model to use to judge whether two pairs are similar
+- `question_gen_model`: the model to use to generate pairs of questions
+- `judge_prompt`: the prompt to use to judge whether two pairs are similar
+- `question_gent_prompt`: the prompt to use to generate pairs of questions
+
 ## How It Works
 
 The tool generates pairs of similar questions based on the provided chatbot description.
@@ -100,3 +115,11 @@ Results with similarity scores below the max_similarity threshold are presented 
 Users can choose to add the questions to a dataset for further analysis or training.
 Persistence
 If a persistence path is provided, the tool will save generated questions and dataset information between runs. This allows for continuous red teaming sessions without duplicating questions.
+
+## Use without LangSmith
+
+You can also use this redteaming agent without LangSmith and dump all the results to a local file. To do this, use the following command:
+
+```
+langfuzz-dump config.yaml results.json [options]
+```
