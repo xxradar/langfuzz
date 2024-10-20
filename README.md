@@ -1,6 +1,6 @@
 
 # LangFuzz: Red Teaming for Language Models
-LangFuzz is a command line tool designed to perform red teaming on language model applications and add any points of interest to a [LangSmith Dataset](https://docs.smith.langchain.com/). It generates pairs of similar questions and compares the responses to identify potential failure modes in chatbots or other language model-based systems.
+LangFuzz is a command line tool designed to perform red teaming on language model applications and add any points of interest to a [LangSmith Dataset](https://docs.smith.langchain.com/). It generates pairs of similar questions and compares the responses to identify potential failure modes in chatbots or other language model-based systems. For those coming from a software engineering background: this similar to a particular type of [fuzz testing](https://www.blackduck.com/glossary/what-is-fuzz-testing.html#:~:text=Definition,as%20crashes%20or%20information%20leakage.) called [metamorphic testing](https://arxiv.org/abs/2002.12543).
 
 ## Installation
 To install LangFuzz, use pip:
